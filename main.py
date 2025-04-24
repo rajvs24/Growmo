@@ -1,50 +1,60 @@
 import os
 import logging
+import requests
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    ApplicationBuilder, CommandHandler, MessageHandler,
-    CallbackQueryHandler, ContextTypes, filters
-)
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 from pydub import AudioSegment
-import openai
-
-# Load env variables
-TOKEN = os.getenv("BOT_TOKEN")
-PORT = int(os.getenv("PORT", 10000))
-WEBHOOK_URL = "https://growmo.onrender.com/webhook"
 
 # Logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Set OpenAI key
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# Tokens
+TOKEN = os.getenv("BOT_TOKEN")
+ASSEMBLY_API = os.getenv("ASSEMBLYAI_API_KEY")
 
-# /start command
+# Start Command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    logger.info("User used /start")
-    await update.message.reply_text("🎤 Send your voice message to get a promo script!")
+    await update.message.reply_text("🎤 Send a voice message to get your video script!")
 
-# Handle voice message
+# Voice Handler
 async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     file = await update.message.voice.get_file()
-
-    # Download and convert audio
     ogg_path = f"{user_id}.ogg"
     mp3_path = f"{user_id}.mp3"
+
     await file.download_to_drive(ogg_path)
 
+    # Convert OGG to MP3
     sound = AudioSegment.from_ogg(ogg_path)
     sound.export(mp3_path, format="mp3")
 
     await update.message.reply_text("🧠 Transcribing your voice...")
 
-    # Transcribe using OpenAI Whisper
-    with open(mp3_path, "rb") as audio_file:
-        transcript = openai.Audio.transcribe("whisper-1", audio_file)
+    # Upload to AssemblyAI
+    with open(mp3_path, "rb") as f:
+        headers = {'authorization': ASSEMBLY_API}
+        response = requests.post("https://api.assemblyai.com/v2/upload", headers=headers, files={"file": f})
 
-    script_text = transcript["text"]
+    upload_url = response.json()["upload_url"]
+
+    # Start transcription
+    transcript_response = requests.post(
+        "https://api.assemblyai.com/v2/transcript",
+        headers={'authorization': ASSEMBLY_API, "content-type": "application/json"},
+        json={"audio_url": upload_url}
+    )
+
+    transcript_id = transcript_response.json()["id"]
+
+    # Polling until done
+    status = "processing"
+    while status != "completed":
+        result = requests.get(f"https://api.assemblyai.com/v2/transcript/{transcript_id}", headers={'authorization': ASSEMBLY_API})
+        status = result.json()["status"]
+
+    script_text = result.json()["text"]
 
     # Buttons
     buttons = [
@@ -58,29 +68,30 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup(buttons)
     )
 
-# Handle button clicks
+# Button Callback
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    await query.edit_message_text(f"✅ You selected: {query.data.capitalize()}")
+    await query.edit_message_text("Button clicked: " + query.data)
 
-# Error logging
-async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+# Error Handler
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     logger.error(f"Update {update} caused error {context.error}")
 
-# Build and run app
+# Main App
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TOKEN).build()
-    
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.VOICE, voice_handler))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_error_handler(error_handler)
 
+    # Run Webhook (for Render.com)
+    WEBHOOK_URL = "https://growmo.onrender.com/webhook"
     app.run_webhook(
         listen="0.0.0.0",
-        port=PORT,
-        url_path="webhook",
+        port=int(os.getenv("PORT", 10000)),
         webhook_url=WEBHOOK_URL,
+        url_path=TOKEN,
         drop_pending_updates=True
     )
