@@ -89,9 +89,10 @@ if __name__ == "__main__":
     # Run Webhook (for Render.com)
     WEBHOOK_URL = "https://growmo.onrender.com/webhook"
     app.run_webhook(
-        listen="0.0.0.0",
-        port=int(os.getenv("PORT", 10000)),
-        webhook_url=WEBHOOK_URL,
-        url_path=TOKEN,
-        drop_pending_updates=True
-    )
+    listen="0.0.0.0",
+    port=int(os.getenv("PORT", 10000)),
+    webhook_url=WEBHOOK_URL,
+    url_path="webhook",  # <-- fix here
+    drop_pending_updates=True
+)
+
