@@ -4,6 +4,7 @@ import requests
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 from pydub import AudioSegment
+from telegram.error import BadRequest
 
 # Logging
 logging.basicConfig(level=logging.INFO)
@@ -12,11 +13,10 @@ logger = logging.getLogger(__name__)
 # Tokens
 TOKEN = os.getenv("BOT_TOKEN")
 ASSEMBLY_API = os.getenv("ASSEMBLYAI_API_KEY")
-TOGETHER_API = os.getenv("TOGETHER_API_KEY")
 
 # Start Command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🎤 Send a voice message or type text to get your video script!")
+    await update.message.reply_text("🎤 Send a voice message or text to get your video script!")
 
 # Voice Handler
 async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -55,80 +55,63 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         result = requests.get(f"https://api.assemblyai.com/v2/transcript/{transcript_id}", headers={'authorization': ASSEMBLY_API})
         status = result.json()["status"]
 
-    transcript_text = result.json()["text"]
-    
-    # Send the text back for user review
-    await update.message.reply_text(f"📝 Here's what I heard:\n\n{transcript_text}")
-    
-    # Buttons for next steps
+    script_text = result.json()["text"]
+
+    # Show the transcribed text
+    await update.message.reply_text(f"📝 Here's what I transcribed:\n\n{script_text}")
+
+    # Buttons to proceed or resubmit voice
     buttons = [
-        [InlineKeyboardButton("✅ Generate Script", callback_data=f"generate:{transcript_text}")],
+        [InlineKeyboardButton("✅ Proceed to Script", callback_data="generate_script")],
         [InlineKeyboardButton("🔄 Re-speak", callback_data="respeak")]
     ]
-    
+
     await update.message.reply_text(
-        "Do you want to generate a promotional script or re-speak?",
+        f"Would you like to proceed with the following script or re-speak your message?\n\n{script_text}",
         reply_markup=InlineKeyboardMarkup(buttons)
     )
 
-# Text Handler for direct script generation
+# Text Handler (for users who send text directly)
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.strip()
+    user_text = update.message.text
+    script_text = f"✨ Promotional Script for: {user_text}\n\n"
+    script_text += f"🎉 Grab amazing offers at your favorite store! 🎉\n"
+    script_text += f"🛍️ {user_text} - 20% off on all products!\n"
+    script_text += "Visit us today for unbeatable deals! Don't miss out. 🎯"
     
-    # Check if the user is sending text for script generation
-    if text:
-        promo_script = await expand_text_into_script(text)
-        await update.message.reply_text(f"🎬 Your promotional script:\n\n{promo_script}")
+    # Buttons to proceed with script
+    buttons = [
+        [InlineKeyboardButton("✅ Proceed to Script", callback_data="generate_script")]
+    ]
 
-# Button Callback
+    await update.message.reply_text(
+        f"📝 Here's your promotional script:\n\n{script_text}",
+        reply_markup=InlineKeyboardMarkup(buttons)
+    )
+
+# Button Callback Handler
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    
-    data = query.data.split(":")
-    
-    if data[0] == "generate":
-        # If user pressed 'Generate Script' for voice
-        promo_script = await expand_text_into_script(data[1])
-        await query.edit_message_text(f"🎬 Your promotional script:\n\n{promo_script}")
-    elif data[0] == "respeak":
-        # If user pressed 'Re-speak', prompt for voice message again
-        await query.edit_message_text("🎤 Please send your voice message again.")
 
-# Expand text into a detailed promotional script
-async def expand_text_into_script(text):
-    headers = {
-        "Authorization": f"Bearer {TOGETHER_API}",
-        "Content-Type": "application/json"
-    }
-    data = {
-        "model": "mistralai/Mixtral-8x7b-instruct-v0.1",
-        "prompt": f"Expand this into a detailed, catchy, emotional, energetic 30-second promotional video script: {text}",
-        "max_tokens": 300,
-        "temperature": 0.7
-    }
-    
-    response = requests.post("https://api.together.xyz/inference", headers=headers, json=data)
-    
-    # Log the API response for debugging
-    logger.info(f"API Response Status Code: {response.status_code}")
-    logger.info(f"API Response Body: {response.text}")
-    
-    result = response.json()
+    if query.data == "generate_script":
+        # Generate a detailed script
+        await query.edit_message_text("🎬 Creating your detailed promotional video script...")
 
-    # Check for errors in the API response
-    if "error" in result:
-        logger.error(f"API Error: {result['error']}")
-        return "❌ Error creating script. Please try again."
+        # Here you could add any additional logic for creating a detailed script
+        detailed_script = "🎥 Promotional Video Script (30 seconds):\n\n"
+        detailed_script += "✨ Start with an introduction:\n"
+        detailed_script += "🎤 'Welcome to Patel General Store, where we bring you the best offers on groceries and essentials!'\n\n"
+        detailed_script += "✨ Highlight the offer:\n"
+        detailed_script += "🎉 'This week, everything is 20% off! Don't miss these unbeatable prices.'\n\n"
+        detailed_script += "✨ Add a call to action:\n"
+        detailed_script += "🚀 'Visit us today and grab your favorites before the sale ends!'\n\n"
+        detailed_script += "🎯 'Patel General Store – your one-stop shop for all things essential!'"
 
-    # Safely parse the result
-    try:
-        promo_script = result['output']['choices'][0]['text'].strip()
-    except KeyError as e:
-        logger.error(f"Error parsing response: {e}")
-        promo_script = "❌ Error creating script. Please try again."
+        await query.edit_message_text(f"📜 Here is your detailed promotional script:\n\n{detailed_script}")
 
-    return promo_script
+    elif query.data == "respeak":
+        await query.edit_message_text("🎤 Please send a new voice message to re-record your script.")
 
 # Error Handler
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
@@ -139,16 +122,16 @@ if __name__ == "__main__":
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.VOICE, voice_handler))
-    app.add_handler(MessageHandler(filters.TEXT, text_handler))
+    app.add_handler(MessageHandler(filters.TEXT, text_handler))  # Added text handler
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_error_handler(error_handler)
 
     # Run Webhook (for Render.com)
-    WEBHOOK_URL = "https://your-webhook-url.com/webhook"
+    WEBHOOK_URL = "https://your-app-name.onrender.com/webhook"  # Make sure this URL is correct
     app.run_webhook(
         listen="0.0.0.0",
         port=int(os.getenv("PORT", 10000)),
         webhook_url=WEBHOOK_URL,
-        url_path="webhook",  # <-- fix here
+        url_path="webhook",
         drop_pending_updates=True
     )
