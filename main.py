@@ -24,7 +24,7 @@ TOGETHER_API = os.getenv("TOGETHER_API_KEY")
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         await update.message.reply_text(
-            "🎤 Welcome to PromoScript Pro!\n\n"
+            "🎤 Welcome to GrowMo!\n\n"
             "Send me text about your business or a voice message, "
             "and I'll generate a professional promotional script for you."
         )
