@@ -4,7 +4,6 @@ import requests
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 from pydub import AudioSegment
-from telegram.error import BadRequest
 
 # Logging
 logging.basicConfig(level=logging.INFO)
