@@ -28,7 +28,7 @@ async def expand_text_into_script(text):
     }
     response = requests.post("https://api.together.xyz/inference", headers=headers, json=data)
     result = response.json()
-    return result['output']['choices'][0]['text'].strip()
+    return result['output'].strip()  # 👈 FIXED: output directly, no choices[0]
 
 # Start Command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
