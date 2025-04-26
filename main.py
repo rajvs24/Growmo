@@ -41,14 +41,21 @@ async def generate_script(prompt_text):
     }
     
     enhanced_prompt = (
-        f"Create a compelling 30-second promotional video script for: {prompt_text}\n\n"
-        "The script should include:\n"
-        "1. Attention-grabbing opening\n"
-        "2. Key benefits/features\n"
-        "3. Emotional appeal\n"
-        "4. Clear call-to-action\n"
-        "5. Natural pacing for voiceover\n"
-        "Format: 4-5 short paragraphs, 60-80 words total"
+        f"Create a compelling 30-second promotional video script in Hinglish (Hindi-English mix) for: {prompt_text}\n\n"
+        "Requirements:\n"
+        "1. Use simple Hinglish (Hindi words with English alphabet)\n"
+        "2. Keep sentences short and conversational\n"
+        "3. Structure:\n"
+        "   - Attention-grabbing opening (Khaas offer! Aaj hi aao!)\n"
+        "   - Key benefits/features (Sabse saste daam mein best quality ka saman)\n"
+        "   - Emotional appeal (Aapke family ki safety hamari priority)\n"
+        "   - Clear call-to-action (Abhi call karein 98765XXXXX par)\n"
+        "4. Length: 60-80 words total\n"
+        "5. Example style:\n"
+        "   \"Namaste dosto! Aaj hum aapke liye laye hain ek zabardast offer! "
+        "Hamare yahan milte hain 100% pure products best price pe. "
+        "Aapki family ki health ke liye hum dete hain complete guarantee. "
+        "Jaldi karein aur uthaye ye special discount! Offer valid hai sirf aaj!\""
     )
     
     data = {
