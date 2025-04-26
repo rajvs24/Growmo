@@ -2,7 +2,10 @@ import os
 import logging
 import requests
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, MessageHandler,
+    CallbackQueryHandler, ContextTypes, filters
+)
 from pydub import AudioSegment
 
 # Logging
@@ -14,7 +17,11 @@ TOKEN = os.getenv("BOT_TOKEN")
 ASSEMBLY_API = os.getenv("ASSEMBLYAI_API_KEY")
 TOGETHER_API = os.getenv("TOGETHER_API_KEY")
 
-# Function to Expand Text into Long Video Script
+# Start Command
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("🎤 Send a voice message or text to generate your promo video script!")
+
+# Expand Text into Promo Script
 async def expand_text_into_script(text):
     headers = {
         "Authorization": f"Bearer {TOGETHER_API}",
@@ -28,11 +35,23 @@ async def expand_text_into_script(text):
     }
     response = requests.post("https://api.together.xyz/inference", headers=headers, json=data)
     result = response.json()
-    return result['output'].strip()  # 👈 FIXED: output directly, no choices[0]
 
-# Start Command
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🎤 Send a voice message or type a short promo line!")
+    # Correct parsing
+    try:
+        promo_script = result['output']['choices'][0]['text'].strip()
+    except Exception as e:
+        promo_script = "❌ Error creating script. Please try again."
+
+    return promo_script
+
+# Text Handler
+async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_text = update.message.text
+    await update.message.reply_text("🧠 Creating your promotional video script...")
+
+    script = await expand_text_into_script(user_text)
+
+    await update.message.reply_text(f"🎬 Here’s your 30-second promo script:\n\n{script}")
 
 # Voice Handler
 async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -71,50 +90,38 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         result = requests.get(f"https://api.assemblyai.com/v2/transcript/{transcript_id}", headers={'authorization': ASSEMBLY_API})
         status = result.json()["status"]
 
-    short_text = result.json()["text"]
+    transcript_text = result.json()["text"]
 
-    await update.message.reply_text("📝 Expanding your idea into full video script...")
-
-    # Expand using Together AI
-    script_text = await expand_text_into_script(short_text)
+    # Save transcript text temporarily
+    context.user_data['transcript_text'] = transcript_text
 
     # Buttons
     buttons = [
-        [InlineKeyboardButton("✏️ Edit Script", callback_data="edit")],
-        [InlineKeyboardButton("✅ Finalize", callback_data="final")],
-        [InlineKeyboardButton("❌ Cancel", callback_data="cancel")]
+        [InlineKeyboardButton("✅ Proceed to Create Script", callback_data="proceed")],
+        [InlineKeyboardButton("🔁 Re-speak", callback_data="respeak")]
     ]
 
     await update.message.reply_text(
-        f"🎬 Here's your detailed promo script:\n\n{script_text}",
+        f"🗣️ You said:\n\n\"{transcript_text}\"",
         reply_markup=InlineKeyboardMarkup(buttons)
     )
 
-# Text Handler (User Types Text Instead of Voice)
-async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_text = update.message.text
-    await update.message.reply_text("📝 Expanding your text into full video script...")
-
-    # Expand using Together AI
-    script_text = await expand_text_into_script(user_text)
-
-    # Buttons
-    buttons = [
-        [InlineKeyboardButton("✏️ Edit Script", callback_data="edit")],
-        [InlineKeyboardButton("✅ Finalize", callback_data="final")],
-        [InlineKeyboardButton("❌ Cancel", callback_data="cancel")]
-    ]
-
-    await update.message.reply_text(
-        f"🎬 Here's your detailed promo script:\n\n{script_text}",
-        reply_markup=InlineKeyboardMarkup(buttons)
-    )
-
-# Button Callback
+# Button Handler
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    await query.edit_message_text("Button clicked: " + query.data)
+
+    if query.data == "proceed":
+        text = context.user_data.get('transcript_text')
+        if text:
+            await query.edit_message_text("🧠 Creating your promotional video script...")
+            script = await expand_text_into_script(text)
+            await query.message.reply_text(f"🎬 Here’s your 30-second promo script:\n\n{script}")
+        else:
+            await query.edit_message_text("❌ No transcription found. Please send a new voice message.")
+
+    elif query.data == "respeak":
+        await query.edit_message_text("🔁 Please send a new voice message.")
 
 # Error Handler
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
@@ -124,8 +131,8 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.VOICE, voice_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
+    app.add_handler(MessageHandler(filters.VOICE, voice_handler))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_error_handler(error_handler)
 
