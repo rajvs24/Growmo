@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 TOKEN = os.getenv("BOT_TOKEN")
 ASSEMBLY_API = os.getenv("ASSEMBLYAI_API_KEY")
 TOGETHER_API = os.getenv("TOGETHER_API_KEY")
-RUNWAY_API = os.getenv("RUNWAY_API_KEY")  # New for video generation
+RUNWAY_API = os.getenv("RUNWAY_API_KEY")
 
 # Start command handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -229,6 +229,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(
                 f"🎬 Here's your promotional script:\n\n{script}",
                 reply_markup=InlineKeyboardMarkup(keyboard)
+            )
                 
     except Exception as e:
         logger.error(f"Text handler error: {e}")
@@ -274,7 +275,8 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
             await update.message.reply_text(
                 f"🔄 Updated Script:\n\n{updated_script}",
-                reply_markup=InlineKeyboardMarkup(keyboard))
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
             
         else:
             await update.message.reply_text("🔍 Processing your voice message...")
@@ -288,7 +290,8 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
             await update.message.reply_text(
                 f"🗣️ You said:\n\n{transcript_text}",
-                reply_markup=InlineKeyboardMarkup(buttons))
+                reply_markup=InlineKeyboardMarkup(buttons)
+            )
                 
     except Exception as e:
         logger.error(f"Voice handler error: {e}")
